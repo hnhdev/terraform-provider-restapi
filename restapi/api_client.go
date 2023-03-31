@@ -25,7 +25,7 @@ type apiClientOpt struct {
 	insecure            bool
 	username            string
 	password            string
-	bearer 				string
+	bearer              string
 	headers             map[string]string
 	timeout             int
 	idAttribute         string
@@ -60,7 +60,7 @@ type APIClient struct {
 	insecure            bool
 	username            string
 	password            string
-	bearer				string
+	bearer              string
 	headers             map[string]string
 	idAttribute         string
 	createMethod        string
@@ -78,7 +78,7 @@ type APIClient struct {
 	oauthConfig         *clientcredentials.Config
 }
 
-//NewAPIClient makes a new api client for RESTful calls
+// NewAPIClient makes a new api client for RESTful calls
 func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 	if opt.debug {
 		log.Printf("api_client.go: Constructing debug api_client\n")
@@ -160,7 +160,7 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		insecure:            opt.insecure,
 		username:            opt.username,
 		password:            opt.password,
-		bearer: 			 opt.bearer,
+		bearer:              opt.bearer,
 		headers:             opt.headers,
 		idAttribute:         opt.idAttribute,
 		createMethod:        opt.createMethod,
@@ -213,8 +213,11 @@ func (client *APIClient) toString() string {
 	return buffer.String()
 }
 
-/* Helper function that handles sending/receiving and handling
-   of HTTP data in and out. */
+/*
+Helper function that handles sending/receiving and handling
+
+	of HTTP data in and out.
+*/
 func (client *APIClient) sendRequest(method string, path string, data string) (string, error) {
 	fullURI := client.uri + path
 	var req *http.Request
@@ -252,7 +255,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 			req.Header.Set(n, v)
 		}
 	}
-	
+
 	/* Set bearer from env var if supplied */
 	if client.bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+client.bearer)
