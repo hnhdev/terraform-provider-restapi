@@ -270,7 +270,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 
 	/* Set bearer from env var if supplied */
 	if client.bearer != "" {
-		req.Header.Set("Authorization", "Bearer "+client.bearer)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearer))
 	}
 
 	if client.oauthConfig != nil {
@@ -279,7 +279,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 		if err != nil {
 			return "", err
 		}
-		req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	}
 
 	if client.gcpOauthConfig != nil {
@@ -287,7 +287,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 		if err != nil {
 			return "", err
 		}
-		req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	}
 
 	if client.username != "" && client.password != "" {
