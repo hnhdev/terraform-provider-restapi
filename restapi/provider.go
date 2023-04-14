@@ -175,6 +175,33 @@ func Provider() *schema.Provider {
 					},
 				},
 			},
+			"gcp_oauth_settings": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				MaxItems:    1,
+				Description: "Configuration for GCP oauth client credential flow",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"scopes": {
+							Type:        schema.TypeList,
+							Elem:        &schema.Schema{Type: schema.TypeString},
+							Optional:    true,
+							Description: "scopes",
+						},
+						"service_account_key": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "scopes",
+							Sensitive:   true,
+						},
+						"audience": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "audience",
+						},
+					},
+				},
+			},
 			"cert_string": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -279,6 +306,13 @@ func configureProvider(d *schema.ResourceData) (interface{}, error) {
 			}
 			opt.oauthEndpointParams = setVals
 		}
+	}
+	if v, ok := d.GetOk("gcp_oauth_settings"); ok {
+		gcpOauthConfig := v.([]interface{})[0].(map[string]interface{})
+
+		opt.gcpOauthServiceAccountKey = gcpOauthConfig["service_account_key"].(string)
+		opt.gcpOauthAudience = gcpOauthConfig["audience"].(string)
+		opt.gcpOauthScopes = expandStringSet(gcpOauthConfig["scopes"].([]interface{}))
 	}
 	if v, ok := d.GetOk("cert_file"); ok {
 		opt.certFile = v.(string)
