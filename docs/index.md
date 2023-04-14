@@ -7,10 +7,6 @@ description: |-
 
 # restapi Provider
 
-
-
-
-
 ## Schema
 
 ### Required
@@ -27,11 +23,12 @@ description: |-
 - **debug** (Boolean, Optional) Enabling this will cause lots of debug information to be printed to STDOUT by the API client.
 - **destroy_method** (String, Optional) Defaults to `DELETE`. The HTTP method used to DELETE objects of this type on the API server.
 - **headers** (Map of String, Optional) A map of header names and values to set on all outbound requests. This is useful if you want to use a script via the 'external' provider or provide a pre-approved token or change Content-Type from `application/json`. If `username` and `password` are set and Authorization is one of the headers defined here, the BASIC auth credentials take precedence.
-- **id_attribute** (String, Optional) When set, this key will be used to operate on REST objects. For example, if the ID is set to 'name', changes to the API object will be to http://foo.com/bar/VALUE_OF_NAME. This value may also be a '/'-delimited path to the id attribute if it is multiple levels deep in the data (such as `attributes/id` in the case of an object `{ "attributes": { "id": 1234 }, "config": { "name": "foo", "something": "bar"}}`
+- **id_attribute** (String, Optional) When set, this key will be used to operate on REST objects. For example, if the ID is set to 'name', changes to the API object will be to <http://foo.com/bar/VALUE_OF_NAME>. This value may also be a '/'-delimited path to the id attribute if it is multiple levels deep in the data (such as `attributes/id` in the case of an object `{ "attributes": { "id": 1234 }, "config": { "name": "foo", "something": "bar"}}`
 - **insecure** (Boolean, Optional) When using https, this disables TLS verification of the host.
 - **key_file** (String, Optional) When set with the cert_file parameter, the provider will load a client certificate as a file for mTLS authentication. Note that this mechanism simply delegates to golang's tls.LoadX509KeyPair which does not support passphrase protected private keys. The most robust security protections available to the key_file are simple file system permissions.
 - **key_string** (String, Optional) When set with the cert_string parameter, the provider will load a client certificate as a string for mTLS authentication. Note that this mechanism simply delegates to golang's tls.LoadX509KeyPair which does not support passphrase protected private keys. The most robust security protections available to the key_file are simple file system permissions.
 - **oauth_client_credentials** (Block List, Max: 1) Configuration for oauth client credential flow (see [below for nested schema](#nestedblock--oauth_client_credentials))
+- **gcp_oauth_settings** (Block list, Max: 1) Settings for GCP oauth flow (see [below for nested schema](#nestedblock--gcp_oauth_settings))
 - **password** (String, Optional) When set, will use this password for BASIC auth to the API.
 - **rate_limit** (Number, Optional) Set this to limit the number of requests per second made to the API.
 - **read_method** (String, Optional) Defaults to `GET`. The HTTP method used to READ objects of this type on the API server.
@@ -44,6 +41,7 @@ description: |-
 - **xssi_prefix** (String, Optional) Trim the xssi prefix from response string, if present, before parsing.
 
 <a id="nestedblock--oauth_client_credentials"></a>
+
 ### Nested Schema for `oauth_client_credentials`
 
 Required:
@@ -56,3 +54,16 @@ Optional:
 
 - **endpoint_params** (Map of List of String, Optional) Additional key/values to pass to the underlying Oauth client library (as EndpointParams)
 - **oauth_scopes** (List of String, Optional) scopes
+
+<a id="nestedblock--gcp_oauth_settings"></a>
+
+### Nested Schema for `gcp_oauth_settings`
+
+Required:
+
+- **service_account_key** (String, Required) GCP Service account key as string
+
+Optional:
+
+- **audience** (Map of List of String, Optional) Audience
+- **scopes** (List of String, Optional) Scopes
