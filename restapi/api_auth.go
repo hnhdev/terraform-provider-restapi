@@ -1,18 +1,49 @@
 package restapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/oauth2l/util"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/microsoft"
 )
 
 type GCPOauthConfig struct {
 	scopes            []string
 	serviceAccountKey string
 	audience          string
+}
+
+type AzureOauthConfig struct {
+	GCPOauthConfig      GCPOauthConfig
+	Scopes              []string
+	TenantId            string
+	ClientId            string
+	ClientAssertionType string `default:"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"`
+	GrantType           string `default:"client_credentials"`
+}
+
+// https://learn.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow#third-case-access-token-request-with-a-federated-credential
+type azureFederatedCredentialAccessTokenRequest struct {
+	Scope               string
+	ClientId            string
+	ClientAssertionType string
+	ClientAssertion     string
+	GrantType           string
+}
+
+// https://learn.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow#third-case-access-token-request-with-a-federated-credential
+type azureFederatedCredentialAccessTokenResponse struct {
+	TokenType   string
+	ExpiresIn   time.Duration
+	AccessToken string
 }
 
 var openIdScopes = regexp.MustCompile("^(openid|profile|email)$")
@@ -46,4 +77,57 @@ func GetGCPOauthToken(gcpOauthConfig *GCPOauthConfig) (*oauth2.Token, error) {
 	}
 
 	return token, nil
+}
+
+func GetAzureOauthToken(azureOauthConfig *AzureOauthConfig) (*oauth2.Token, error) {
+	httpClient := &http.Client{}
+	endpoint := microsoft.AzureADEndpoint(azureOauthConfig.TenantId)
+
+	clientAssertion, err := GetGCPOauthToken(&azureOauthConfig.GCPOauthConfig)
+
+	if err != nil {
+		return nil, err
+	}
+
+	requestBody, err := json.Marshal(azureFederatedCredentialAccessTokenRequest{
+		ClientId:            azureOauthConfig.ClientId,
+		ClientAssertion:     clientAssertion.AccessToken,
+		ClientAssertionType: azureOauthConfig.ClientAssertionType,
+		GrantType:           azureOauthConfig.GrantType,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	authRequest, err := http.NewRequest("POST", endpoint.TokenURL, bytes.NewReader(requestBody))
+
+	if err != nil {
+		return nil, err
+	}
+
+	authRequest.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := httpClient.Do(authRequest)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var response azureFederatedCredentialAccessTokenResponse
+	err = json.Unmarshal(responseBody, &response)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &oauth2.Token{AccessToken: response.AccessToken, TokenType: response.TokenType}, nil
 }

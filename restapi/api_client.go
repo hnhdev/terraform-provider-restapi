@@ -53,6 +53,7 @@ type apiClientOpt struct {
 	certString                string
 	keyString                 string
 	debug                     bool
+	AzureOauthConfig          *AzureOauthConfig
 }
 
 /*APIClient is a HTTP client with additional controlling fields*/
@@ -79,6 +80,7 @@ type APIClient struct {
 	debug               bool
 	oauthConfig         *clientcredentials.Config
 	gcpOauthConfig      *GCPOauthConfig
+	azureOauthConfig    *AzureOauthConfig
 }
 
 // NewAPIClient makes a new api client for RESTful calls
@@ -197,6 +199,10 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		}
 	}
 
+	if opt.AzureOauthConfig != nil {
+		client.azureOauthConfig = opt.AzureOauthConfig
+	}
+
 	if opt.debug {
 		log.Printf("api_client.go: Constructed client:\n%s", client.toString())
 	}
@@ -284,6 +290,14 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 
 	if client.gcpOauthConfig != nil {
 		token, err := GetGCPOauthToken(client.gcpOauthConfig)
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+	}
+
+	if client.azureOauthConfig != nil {
+		token, err := GetAzureOauthToken(client.azureOauthConfig)
 		if err != nil {
 			return "", err
 		}

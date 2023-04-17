@@ -191,13 +191,78 @@ func Provider() *schema.Provider {
 						"service_account_key": {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "scopes",
+							Description: "service account key",
 							Sensitive:   true,
 						},
 						"audience": {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Description: "audience",
+						},
+					},
+				},
+			},
+			"azure_oauth_settings": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				MaxItems:    1,
+				Description: "Configuration for azure federated credential oauth flow",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"scopes": {
+							Type:        schema.TypeList,
+							Elem:        &schema.Schema{Type: schema.TypeString},
+							Optional:    false,
+							Description: "scopes",
+						},
+						"client_assertion_type": {
+							Type:        schema.TypeString,
+							Optional:    false,
+							Description: "client assertion type",
+							Default:     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+						},
+						"grant_type": {
+							Type:        schema.TypeString,
+							Optional:    false,
+							Description: "grant type",
+							Default:     "client_credentials",
+						},
+						"tenant_id": {
+							Type:        schema.TypeString,
+							Optional:    false,
+							Description: "tenant id",
+						},
+						"audience": {
+							Type:        schema.TypeString,
+							Optional:    false,
+							Description: "audience",
+						},
+						"gcp_oauth_settings": {
+							Type:        schema.TypeList,
+							Optional:    false,
+							MaxItems:    1,
+							Description: "gcp oauth settings",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"scopes": {
+										Type:        schema.TypeList,
+										Elem:        &schema.Schema{Type: schema.TypeString},
+										Optional:    true,
+										Description: "scopes",
+									},
+									"service_account_key": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "service account key",
+										Sensitive:   true,
+									},
+									"audience": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "audience",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -308,12 +373,32 @@ func configureProvider(d *schema.ResourceData) (interface{}, error) {
 		}
 	}
 	if v, ok := d.GetOk("gcp_oauth_settings"); ok {
-		gcpOauthConfig := v.([]interface{})[0].(map[string]interface{})
+		gcpOauthSettings := v.([]interface{})[0].(map[string]interface{})
 
-		opt.gcpOauthServiceAccountKey = gcpOauthConfig["service_account_key"].(string)
-		opt.gcpOauthAudience = gcpOauthConfig["audience"].(string)
-		opt.gcpOauthScopes = expandStringSet(gcpOauthConfig["scopes"].([]interface{}))
+		opt.gcpOauthServiceAccountKey = gcpOauthSettings["service_account_key"].(string)
+		opt.gcpOauthAudience = gcpOauthSettings["audience"].(string)
+		opt.gcpOauthScopes = expandStringSet(gcpOauthSettings["scopes"].([]interface{}))
 	}
+
+	if v, ok := d.GetOk("azure_oauth_settings"); ok {
+		azureOauthSettings := v.([]interface{})[0].(map[string]interface{})
+		gcpOauthSettings := azureOauthSettings["gcp_oauth_settings"].([]interface{})[0].(map[string]interface{})
+
+		opt.AzureOauthConfig = &AzureOauthConfig{
+			Scopes:              expandStringSet(azureOauthSettings["scopes"].([]interface{})),
+			TenantId:            azureOauthSettings["tentant_id"].(string),
+			ClientId:            azureOauthSettings["client_id"].(string),
+			GrantType:           azureOauthSettings["grant_type"].(string),
+			ClientAssertionType: azureOauthSettings["client_assertion_type"].(string),
+
+			GCPOauthConfig: GCPOauthConfig{
+				scopes:            expandStringSet(gcpOauthSettings["scopes"].([]interface{})),
+				serviceAccountKey: gcpOauthSettings["service_account_key"].(string),
+				audience:          gcpOauthSettings["audience"].(string),
+			},
+		}
+	}
+
 	if v, ok := d.GetOk("cert_file"); ok {
 		opt.certFile = v.(string)
 	}
