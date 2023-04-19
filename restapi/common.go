@@ -172,3 +172,11 @@ func expandStringList(configured []interface{}) []string {
 	}
 	return vs
 }
+
+type AsyncSettings struct {
+	RedirectUriKey         string
+	SearchKey              string
+	SearchValue            string
+	PollInterval           int
+	MaximumPollingDuration int
+}

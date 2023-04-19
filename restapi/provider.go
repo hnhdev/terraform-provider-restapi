@@ -136,6 +136,40 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("REST_API_DEBUG", nil),
 				Description: "Enabling this will cause lots of debug information to be printed to STDOUT by the API client.",
 			},
+			"async_settings": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"redirect_uri_key": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "The key of the uri in the response that should be followed",
+						},
+						"search_key": {
+							Type:        schema.TypeString,
+							Description: "The key that should be evaluated to determine whether a async request is done",
+							Required:    true,
+						},
+						"search_value": {
+							Type:        schema.TypeString,
+							Description: "The value that should be evaluated to determine whether a async request is done",
+							Required:    true,
+						},
+						"poll_interval": {
+							Type:        schema.TypeInt,
+							Description: "At what interval the endpoint should be checked (in seconds)",
+							Optional:    true,
+						},
+						"maximum_polling_duration": {
+							Type:        schema.TypeInt,
+							Description: "After this amount of time the polling should stop (in seconds)",
+							Optional:    true,
+						},
+					},
+				},
+			},
 			"oauth_client_credentials": {
 				Type:        schema.TypeList,
 				Optional:    true,
@@ -402,6 +436,17 @@ func configureProvider(d *schema.ResourceData) (interface{}, error) {
 				Delegates:       expandStringSet(gcpOpenIdTokenConfig["delegates"].([]interface{})),
 				Audience:        gcpOpenIdTokenConfig["audience"].(string),
 			},
+		}
+	}
+
+	if v, ok := d.GetOk("async_settings"); ok {
+		asyncSettings := v.([]interface{})[0].(map[string]interface{})
+		opt.AsyncSettings = &AsyncSettings{
+			RedirectUriKey:         asyncSettings["redirect_uri_key"].(string),
+			SearchKey:              asyncSettings["search_key"].(string),
+			SearchValue:            asyncSettings["search_value"].(string),
+			PollInterval:           asyncSettings["poll_interval"].(int),
+			MaximumPollingDuration: asyncSettings["maximum_polling_duration"].(int),
 		}
 	}
 

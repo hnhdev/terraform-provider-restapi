@@ -15,6 +15,7 @@ description: |-
 
 ### Optional
 
+- TODO ADD ASYNC BLOCK
 - **azure_oauth_settings** (Block list, Max 1) Settings for Azure federated credential flow (see [below for nested schema](#nested-schema-for-azure_oauth_settings))
 - **cert_file** (String, Optional) When set with the key_file parameter, the provider will load a client certificate as a file for mTLS authentication.
 - **cert_string** (String, Optional) When set with the key_string parameter, the provider will load a client certificate as a string for mTLS authentication.

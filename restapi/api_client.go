@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sethvargo/go-retry"
 	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/time/rate"
 )
@@ -52,6 +54,7 @@ type apiClientOpt struct {
 	debug               bool
 	GCPOauthConfig      *GCPOauthConfig
 	AzureOauthConfig    *AzureOauthConfig
+	AsyncSettings       *AsyncSettings
 }
 
 /*APIClient is a HTTP client with additional controlling fields*/
@@ -79,6 +82,7 @@ type APIClient struct {
 	oauthConfig         *clientcredentials.Config
 	gcpOauthConfig      *GCPOauthConfig
 	azureOauthConfig    *AzureOauthConfig
+	AsyncSettings       *AsyncSettings
 }
 
 // NewAPIClient makes a new api client for RESTful calls
@@ -197,6 +201,10 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		client.azureOauthConfig = opt.AzureOauthConfig
 	}
 
+	if opt.AsyncSettings != nil {
+		client.AsyncSettings = opt.AsyncSettings
+	}
+
 	if opt.debug {
 		log.Printf("api_client.go: Constructed client:\n%s", client.toString())
 	}
@@ -231,134 +239,230 @@ Helper function that handles sending/receiving and handling
 	of HTTP data in and out.
 */
 func (client *APIClient) sendRequest(method string, path string, data string) (string, error) {
-	fullURI := client.uri + path
+	var requestUri string = client.uri + path
+	var responseBody string
+	var requestBody string = data
+	var requestMethod string = method
+	var requestIsRedirected bool = false
+	var backoff retry.Backoff = retry.NewConstant(time.Second)
+
+	if client.AsyncSettings != nil && client.AsyncSettings.PollInterval > 0 {
+		backoff = retry.NewConstant(time.Duration(client.AsyncSettings.PollInterval) * time.Second)
+	}
+
+	if client.AsyncSettings != nil && client.AsyncSettings.MaximumPollingDuration > 0 {
+		backoff = retry.WithMaxDuration(time.Duration(client.AsyncSettings.MaximumPollingDuration)*time.Second, backoff)
+	}
+
 	var req *http.Request
 	var err error
 
 	if client.debug {
-		log.Printf("api_client.go: method='%s', path='%s', full uri (derived)='%s', data='%s'\n", method, path, fullURI, data)
+		log.Printf("api_client.go: method='%s', path='%s', full uri (derived)='%s', data='%s'\n", requestMethod, path, requestUri, data)
 	}
 
-	buffer := bytes.NewBuffer([]byte(data))
+	ctx := context.Background()
 
-	if data == "" {
-		req, err = http.NewRequest(method, fullURI, nil)
-	} else {
-		req, err = http.NewRequest(method, fullURI, buffer)
+	err = retry.Do(ctx, backoff, func(ctx context.Context) error {
+		buffer := bytes.NewBuffer([]byte(requestBody))
 
-		/* Default of application/json, but allow headers array to overwrite later */
-		if err == nil {
-			req.Header.Set("Content-Type", "application/json")
-		}
-	}
+		if requestBody == "" {
+			req, err = http.NewRequest(requestMethod, requestUri, nil)
+		} else {
+			req, err = http.NewRequest(requestMethod, requestUri, buffer)
 
-	if err != nil {
-		log.Fatal(err)
-		return "", err
-	}
-
-	if client.debug {
-		log.Printf("api_client.go: Sending HTTP request to %s...\n", req.URL)
-	}
-
-	/* Allow for tokens or other pre-created secrets */
-	if len(client.headers) > 0 {
-		for n, v := range client.headers {
-			req.Header.Set(n, v)
-		}
-	}
-
-	/* Set bearer from env var if supplied */
-	if client.bearer != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearer))
-	}
-
-	if client.oauthConfig != nil {
-		tokenSource := client.oauthConfig.TokenSource(context.Background())
-		token, err := tokenSource.Token()
-		if err != nil {
-			return "", err
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
-	}
-
-	if client.gcpOauthConfig != nil {
-		token, err := GetGCPOauthToken(client.gcpOauthConfig)
-		if err != nil {
-			return "", err
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
-	}
-
-	if client.azureOauthConfig != nil {
-		token, err := GetAzureOauthToken(client.azureOauthConfig)
-		if err != nil {
-			return "", err
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
-	}
-
-	if client.username != "" && client.password != "" {
-		/* ... and fall back to basic auth if configured */
-		req.SetBasicAuth(client.username, client.password)
-	}
-
-	if client.debug {
-		log.Printf("api_client.go: Request headers:\n")
-		for name, headers := range req.Header {
-			for _, h := range headers {
-				log.Printf("api_client.go:   %v: %v", name, h)
+			/* Default of application/json, but allow headers array to overwrite later */
+			if err == nil {
+				req.Header.Set("Content-Type", "application/json")
 			}
 		}
 
-		log.Printf("api_client.go: BODY:\n")
-		body := "<none>"
-		if req.Body != nil {
-			body = string(data)
+		if err != nil {
+			log.Fatal(err)
+			return err
 		}
-		log.Printf("%s\n", body)
-	}
 
-	if client.rateLimiter != nil {
-		// Rate limiting
 		if client.debug {
-			log.Printf("Waiting for rate limit availability\n")
+			log.Printf("api_client.go: Sending HTTP request to %s...\n", req.URL)
 		}
-		_ = client.rateLimiter.Wait(context.Background())
-	}
 
-	resp, err := client.httpClient.Do(req)
-
-	if err != nil {
-		//log.Printf("api_client.go: Error detected: %s\n", err)
-		return "", err
-	}
-
-	if client.debug {
-		log.Printf("api_client.go: Response code: %d\n", resp.StatusCode)
-		log.Printf("api_client.go: Response headers:\n")
-		for name, headers := range resp.Header {
-			for _, h := range headers {
-				log.Printf("api_client.go:   %v: %v", name, h)
+		/* Allow for tokens or other pre-created secrets */
+		if len(client.headers) > 0 {
+			for n, v := range client.headers {
+				req.Header.Set(n, v)
 			}
 		}
-	}
 
-	bodyBytes, err2 := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
+		/* Set bearer from env var if supplied */
+		if client.bearer != "" {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearer))
+		}
 
-	if err2 != nil {
-		return "", err2
-	}
-	body := strings.TrimPrefix(string(bodyBytes), client.xssiPrefix)
-	if client.debug {
-		log.Printf("api_client.go: BODY:\n%s\n", body)
-	}
+		if client.oauthConfig != nil {
+			tokenSource := client.oauthConfig.TokenSource(context.Background())
+			token, err := tokenSource.Token()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return body, fmt.Errorf("unexpected response code '%d': %s", resp.StatusCode, body)
-	}
+			if err != nil {
+				return err
+			}
 
-	return body, nil
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+		}
 
+		if client.gcpOauthConfig != nil {
+			token, err := GetGCPOauthToken(client.gcpOauthConfig)
+
+			if err != nil {
+				return err
+			}
+
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+		}
+
+		if client.azureOauthConfig != nil {
+			token, err := GetAzureOauthToken(client.azureOauthConfig)
+
+			if err != nil {
+				return err
+			}
+
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+		}
+
+		if client.username != "" && client.password != "" {
+			/* ... and fall back to basic auth if configured */
+			req.SetBasicAuth(client.username, client.password)
+		}
+
+		if client.debug {
+			var headerList []string
+
+			for name, headers := range req.Header {
+				for _, h := range headers {
+					headerList = append(headerList, fmt.Sprintf("%s, %s", name, h))
+				}
+			}
+
+			body := "<none>"
+			if req.Body != nil {
+				body = string(requestBody)
+			}
+
+			log.Printf(`
+--- [REQUEST TO %s] ---
+%s %s 
+
+%s
+
+%s
+
+--- [END REQUEST] ---`, req.Host, req.Method, req.URL, strings.Join(headerList, "\n"), body)
+		}
+
+		if client.rateLimiter != nil {
+			// Rate limiting
+			if client.debug {
+				log.Printf("Waiting for rate limit availability\n")
+			}
+			_ = client.rateLimiter.Wait(context.Background())
+		}
+
+		resp, err := client.httpClient.Do(req)
+
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if err != nil {
+			return err
+		}
+
+		if client.debug {
+			var headerList []string
+
+			for name, headers := range resp.Header {
+				for _, h := range headers {
+					headerList = append(headerList, fmt.Sprintf("%s, %s", name, h))
+				}
+			}
+
+			if err != nil {
+				return err
+			}
+
+			log.Printf(`
+--- [RESPONSE FROM %s] ---
+%s
+
+%s
+
+%s
+
+--- [END RESPONSE] ---`, resp.Request.Host, resp.Status, strings.Join(headerList, "\n"), string(bodyBytes))
+		}
+
+		body := strings.TrimPrefix(string(bodyBytes), client.xssiPrefix)
+		responseBody = body
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return fmt.Errorf("unexpected response code '%d': %s", resp.StatusCode, body)
+		}
+
+		if client.AsyncSettings != nil && client.AsyncSettings.RedirectUriKey != "" && !requestIsRedirected {
+			var result interface{}
+			err = json.Unmarshal([]byte(body), &result)
+
+			if err != nil {
+				return err
+			} else {
+				redirectUri, err := GetStringAtKey(result.(map[string]interface{}), client.AsyncSettings.RedirectUriKey, client.debug)
+
+				if err != nil {
+					log.Printf("api_client.go: Cant find redirect URI key: %s\n", err)
+					return err
+				}
+
+				if client.debug {
+					log.Printf("api_client.go: Has follow uri, following to: %s", redirectUri)
+				}
+
+				requestUri = redirectUri
+				requestMethod = "GET"
+				requestIsRedirected = true
+				requestBody = ""
+
+				return retry.RetryableError(errors.New("should retry with new path"))
+			}
+		}
+
+		if client.AsyncSettings != nil && client.AsyncSettings.SearchKey != "" && client.AsyncSettings.SearchValue != "" {
+			var result interface{}
+			err = json.Unmarshal([]byte(body), &result)
+
+			if err != nil {
+				return err
+			}
+
+			value, err := GetStringAtKey(result.(map[string]interface{}), client.AsyncSettings.SearchKey, client.debug)
+
+			if err != nil {
+				return err
+			}
+
+			if value != client.AsyncSettings.SearchValue {
+				if client.debug {
+					log.Printf("apie_client.go: search value does not match desired value %s!=%s", value, client.AsyncSettings.SearchValue)
+				}
+				return retry.RetryableError(errors.New("async search value not found, retrying"))
+			}
+		}
+
+		return nil
+	})
+
+	return responseBody, err
 }
