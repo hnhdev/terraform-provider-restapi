@@ -20,40 +20,38 @@ import (
 )
 
 type apiClientOpt struct {
-	uri                       string
-	insecure                  bool
-	username                  string
-	password                  string
-	bearer                    string
-	headers                   map[string]string
-	timeout                   int
-	idAttribute               string
-	createMethod              string
-	readMethod                string
-	updateMethod              string
-	updateData                string
-	destroyMethod             string
-	destroyData               string
-	copyKeys                  []string
-	writeReturnsObject        bool
-	createReturnsObject       bool
-	xssiPrefix                string
-	useCookies                bool
-	rateLimit                 float64
-	oauthClientID             string
-	oauthClientSecret         string
-	oauthScopes               []string
-	oauthTokenURL             string
-	oauthEndpointParams       url.Values
-	gcpOauthScopes            []string
-	gcpOauthServiceAccountKey string
-	gcpOauthAudience          string
-	certFile                  string
-	keyFile                   string
-	certString                string
-	keyString                 string
-	debug                     bool
-	AzureOauthConfig          *AzureOauthConfig
+	uri                 string
+	insecure            bool
+	username            string
+	password            string
+	bearer              string
+	headers             map[string]string
+	timeout             int
+	idAttribute         string
+	createMethod        string
+	readMethod          string
+	updateMethod        string
+	updateData          string
+	destroyMethod       string
+	destroyData         string
+	copyKeys            []string
+	writeReturnsObject  bool
+	createReturnsObject bool
+	xssiPrefix          string
+	useCookies          bool
+	rateLimit           float64
+	oauthClientID       string
+	oauthClientSecret   string
+	oauthScopes         []string
+	oauthTokenURL       string
+	oauthEndpointParams url.Values
+	certFile            string
+	keyFile             string
+	certString          string
+	keyString           string
+	debug               bool
+	GCPOauthConfig      *GCPOauthConfig
+	AzureOauthConfig    *AzureOauthConfig
 }
 
 /*APIClient is a HTTP client with additional controlling fields*/
@@ -191,12 +189,8 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		}
 	}
 
-	if opt.gcpOauthServiceAccountKey != "" {
-		client.gcpOauthConfig = &GCPOauthConfig{
-			serviceAccountKey: opt.gcpOauthServiceAccountKey,
-			scopes:            opt.gcpOauthScopes,
-			audience:          opt.gcpOauthAudience,
-		}
+	if opt.GCPOauthConfig != nil {
+		client.gcpOauthConfig = opt.GCPOauthConfig
 	}
 
 	if opt.AzureOauthConfig != nil {

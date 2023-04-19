@@ -15,6 +15,7 @@ description: |-
 
 ### Optional
 
+- **azure_oauth_settings** (Block list, Max 1) Settings for Azure federated credential flow (see [below for nested schema](#nested-schema-for-azure_oauth_settings))
 - **cert_file** (String, Optional) When set with the key_file parameter, the provider will load a client certificate as a file for mTLS authentication.
 - **cert_string** (String, Optional) When set with the key_string parameter, the provider will load a client certificate as a string for mTLS authentication.
 - **copy_keys** (List of String, Optional) When set, any PUT to the API for an object will copy these keys from the data the provider has gathered about the object. This is useful if internal API information must also be provided with updates, such as the revision of the object.
@@ -22,13 +23,13 @@ description: |-
 - **create_returns_object** (Boolean, Optional) Set this when the API returns the object created only on creation operations (POST). This is used by the provider to refresh internal data structures.
 - **debug** (Boolean, Optional) Enabling this will cause lots of debug information to be printed to STDOUT by the API client.
 - **destroy_method** (String, Optional) Defaults to `DELETE`. The HTTP method used to DELETE objects of this type on the API server.
+- **gcp_oauth_settings** (Block list, Max: 1) Settings for GCP oauth flow (see [below for nested schema](#nestedblock--gcp_oauth_settings))
 - **headers** (Map of String, Optional) A map of header names and values to set on all outbound requests. This is useful if you want to use a script via the 'external' provider or provide a pre-approved token or change Content-Type from `application/json`. If `username` and `password` are set and Authorization is one of the headers defined here, the BASIC auth credentials take precedence.
 - **id_attribute** (String, Optional) When set, this key will be used to operate on REST objects. For example, if the ID is set to 'name', changes to the API object will be to <http://foo.com/bar/VALUE_OF_NAME>. This value may also be a '/'-delimited path to the id attribute if it is multiple levels deep in the data (such as `attributes/id` in the case of an object `{ "attributes": { "id": 1234 }, "config": { "name": "foo", "something": "bar"}}`
 - **insecure** (Boolean, Optional) When using https, this disables TLS verification of the host.
 - **key_file** (String, Optional) When set with the cert_file parameter, the provider will load a client certificate as a file for mTLS authentication. Note that this mechanism simply delegates to golang's tls.LoadX509KeyPair which does not support passphrase protected private keys. The most robust security protections available to the key_file are simple file system permissions.
 - **key_string** (String, Optional) When set with the cert_string parameter, the provider will load a client certificate as a string for mTLS authentication. Note that this mechanism simply delegates to golang's tls.LoadX509KeyPair which does not support passphrase protected private keys. The most robust security protections available to the key_file are simple file system permissions.
 - **oauth_client_credentials** (Block List, Max: 1) Configuration for oauth client credential flow (see [below for nested schema](#nestedblock--oauth_client_credentials))
-- **gcp_oauth_settings** (Block list, Max: 1) Settings for GCP oauth flow (see [below for nested schema](#nestedblock--gcp_oauth_settings))
 - **password** (String, Optional) When set, will use this password for BASIC auth to the API.
 - **rate_limit** (Number, Optional) Set this to limit the number of requests per second made to the API.
 - **read_method** (String, Optional) Defaults to `GET`. The HTTP method used to READ objects of this type on the API server.
@@ -55,6 +56,22 @@ Optional:
 - **endpoint_params** (Map of List of String, Optional) Additional key/values to pass to the underlying Oauth client library (as EndpointParams)
 - **oauth_scopes** (List of String, Optional) scopes
 
+<a id="nestedblock--azure_oauth_settings"></a>
+
+### Nested Schema for `azure_oauth_settings`
+
+Required:
+
+- **scope** (String, Required) client id
+- **tentant_id** (String, Required) tenant id
+- **client_id** (String, Required) client_id
+
+Optional:
+
+- **grant_type** (String, Optional) grant type
+- **client_assertion_type** (String, Optional) client assertion type
+- **gcp_open_id_token_config** (Block List, Max 1, Optional) gcp open id token config (see [below for nested schema](#nested-schema-for-gcp_open_id_token_config))
+
 <a id="nestedblock--gcp_oauth_settings"></a>
 
 ### Nested Schema for `gcp_oauth_settings`
@@ -65,5 +82,19 @@ Required:
 
 Optional:
 
-- **audience** (Map of List of String, Optional) Audience
+- **audience** (List of String, Optional) Audience
 - **scopes** (List of String, Optional) Scopes
+
+<a id="nestedblock--gcp_open_id_token_config"></a>
+
+### Nested Schema for `gcp_open_id_token_config`
+
+Required:
+
+- **target_principal** (String, Required) target principal as string
+- **audience** (String, Required) audience as string
+
+Optional:
+
+- **delegates** (List of String, Optional) list of delegates
+- **include_email** (Boolean, Optional) boolean indicating whether to include email
