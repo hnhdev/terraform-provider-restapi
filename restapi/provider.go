@@ -145,7 +145,7 @@ func Provider() *schema.Provider {
 						"redirect_uri_key": {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "The key of the uri in the response that should be followed",
+							Description: "The key of the uri in the response that should be followed instead",
 						},
 						"search_key": {
 							Type:        schema.TypeString,

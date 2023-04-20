@@ -16,6 +16,7 @@ description: |-
 ### Optional
 
 - TODO ADD ASYNC BLOCK
+- **async_settings** (Block list, Max 1) Settings for asynchronous API calls (see [below for nested schema](#nested-schema-for-async_settings))
 - **azure_oauth_settings** (Block list, Max 1) Settings for Azure federated credential flow (see [below for nested schema](#nested-schema-for-azure_oauth_settings))
 - **cert_file** (String, Optional) When set with the key_file parameter, the provider will load a client certificate as a file for mTLS authentication.
 - **cert_string** (String, Optional) When set with the key_string parameter, the provider will load a client certificate as a string for mTLS authentication.
@@ -41,6 +42,21 @@ description: |-
 - **username** (String, Optional) When set, will use this username for BASIC auth to the API.
 - **write_returns_object** (Boolean, Optional) Set this when the API returns the object created on all write operations (POST, PUT). This is used by the provider to refresh internal data structures.
 - **xssi_prefix** (String, Optional) Trim the xssi prefix from response string, if present, before parsing.
+
+<a id="nestedblock--async_settings"></a>
+
+### Nested Schema for `async_settings`
+
+Required:
+
+- **search_key** (String, Required) Key in the API response to check whether asynchronous call is done
+- **search_value** (String, Required) Value that should be compared to the value of `search_key` in the API response
+
+Optional:
+
+- **redirect_uri_key** (String, Optional) Key in the API response that contains a url that should be followed instead
+- **poll_interval** (String, Optional) At what interval the endpoint should be checked (in seconds)
+- **maximum_polling_duration** (String, Optional) After this amount of time the polling should stop (in seconds)
 
 <a id="nestedblock--oauth_client_credentials"></a>
 

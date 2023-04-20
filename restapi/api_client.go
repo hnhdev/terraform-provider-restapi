@@ -455,7 +455,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 
 			if value != client.AsyncSettings.SearchValue {
 				if client.debug {
-					log.Printf("apie_client.go: search value does not match desired value %s!=%s", value, client.AsyncSettings.SearchValue)
+					log.Printf("api_client.go: search value does not match desired value %s!=%s", value, client.AsyncSettings.SearchValue)
 				}
 				return retry.RetryableError(errors.New("async search value not found, retrying"))
 			}
