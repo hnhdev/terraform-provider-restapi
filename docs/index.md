@@ -113,5 +113,5 @@ Required:
 
 Optional:
 
-- **delegates** (List of String, Optional) list of delegates
+- **delegates** (String, Optional) list of delegates (comma separated string)
 - **include_email** (Boolean, Optional) boolean indicating whether to include email
