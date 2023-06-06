@@ -3,6 +3,7 @@ package restapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -118,6 +119,10 @@ func GetAzureOauthToken(azureOauthConfig *AzureOauthConfig) (*oauth2.Token, erro
 
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status code for Azure login: %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
