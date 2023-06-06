@@ -173,6 +173,16 @@ func expandStringList(configured []interface{}) []string {
 	return vs
 }
 
+func StringToList(input string) []string {
+	output := make([]string, 0)
+
+	for _, element := range strings.Split(input, ",") {
+		output = append(output, strings.TrimSpace(element))
+	}
+
+	return output
+}
+
 type AsyncSettings struct {
 	RedirectUriKey         string
 	SearchKey              string

@@ -84,30 +84,24 @@ Optional:
 <a id="nestedblock--azure_oauth_settings"></a>
 ### Nested Schema for `azure_oauth_settings`
 
-Required:
-
-- `client_id` (String) client id
-- `scope` (String) scope
-- `tenant_id` (String) tenant id
-
 Optional:
 
 - `client_assertion_type` (String) client assertion type
+- `client_id` (String) client id
 - `gcp_open_id_token_config` (Block List) Open id settings to fetch a token using gcp creds (see [below for nested schema](#nestedblock--azure_oauth_settings--gcp_open_id_token_config))
 - `grant_type` (String) grant type
+- `scope` (String) scope
+- `tenant_id` (String) tenant id
 
 <a id="nestedblock--azure_oauth_settings--gcp_open_id_token_config"></a>
 ### Nested Schema for `azure_oauth_settings.gcp_open_id_token_config`
 
-Required:
-
-- `audience` (String) audience
-- `target_principal` (String) target principal
-
 Optional:
 
-- `delegates` (List of String) delegates
+- `audience` (String) audience
+- `delegates` (String) delegates (as comma separated string, since terraform does not allow list default values / functions)
 - `include_email` (Boolean) include email
+- `target_principal` (String) target principal
 
 
 
