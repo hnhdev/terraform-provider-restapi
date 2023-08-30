@@ -84,6 +84,7 @@ type APIClient struct {
 	gcpOauthConfig      *GCPOauthConfig
 	azureOauthConfig    *AzureOauthConfig
 	AsyncSettings       *AsyncSettings
+	gcpOauthToken       *oauth2.Token
 }
 
 // NewAPIClient makes a new api client for RESTful calls
@@ -312,10 +313,32 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 		}
 
 		if client.gcpOauthConfig != nil {
-			token, err := GetGCPOauthToken(client.gcpOauthConfig)
+			token := client.gcpOauthToken
+			empty_token := token == nil
+			expired_token := !empty_token && time.Now().Add(-time.Minute).After(token.Expiry)
 
-			if err != nil {
-				return err
+			if client.debug {
+				if expired_token {
+					log.Println("GCP bearer token expired")
+				} else if empty_token {
+					log.Println("no GCP bearer token in memory")
+				} else {
+					log.Println("reusing GCP bearer token")
+				}
+			}
+
+			if empty_token || expired_token {
+				if client.debug {
+					log.Println("attemtping to fetch new GCP bearer token")
+				}
+
+				token, err = GetGCPOauthToken(client.gcpOauthConfig)
+
+				if err != nil {
+					return err
+				}
+
+				client.gcpOauthToken = token
 			}
 
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
