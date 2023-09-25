@@ -263,8 +263,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 		log.Printf("api_client.go: method='%s', path='%s', full uri (derived)='%s', data='%s'\n", requestMethod, path, requestUri, data)
 	}
 
-	ctx := context.Background()
-
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client.httpClient)
 	err = retry.Do(ctx, backoff, func(ctx context.Context) error {
 		buffer := bytes.NewBuffer([]byte(requestBody))
 
@@ -389,7 +388,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 			if client.debug {
 				log.Printf("Waiting for rate limit availability\n")
 			}
-			_ = client.rateLimiter.Wait(context.Background())
+			_ = client.rateLimiter.Wait(ctx)
 		}
 
 		resp, err := client.httpClient.Do(req)
