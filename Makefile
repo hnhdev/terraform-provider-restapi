@@ -1,6 +1,6 @@
 # Reused implementation of https://github.com/badarsebard/terraform-provider-xsoar
 HOSTNAME=local
-NAMESPACE=hnhdev
+NAMESPACE=mastercard
 NAME=restapi
 BINARY=terraform-provider-${NAME}
 VERSION=1.18.3
