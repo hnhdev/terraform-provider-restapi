@@ -10,7 +10,7 @@ import (
 var apiClientServer *http.Server
 
 func TestAPIClient(t *testing.T) {
-	debug := false
+	debug := true
 
 	if debug {
 		log.Println("client_test.go: Starting HTTP server")

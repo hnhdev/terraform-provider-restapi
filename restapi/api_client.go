@@ -21,36 +21,39 @@ import (
 )
 
 type apiClientOpt struct {
-	uri                 string
-	insecure            bool
-	username            string
-	password            string
-	bearer              string
-	headers             map[string]string
-	timeout             int
-	idAttribute         string
-	createMethod        string
-	readMethod          string
-	updateMethod        string
-	updateData          string
-	destroyMethod       string
-	destroyData         string
-	copyKeys            []string
-	writeReturnsObject  bool
-	createReturnsObject bool
-	xssiPrefix          string
-	useCookies          bool
-	rateLimit           float64
-	oauthClientID       string
-	oauthClientSecret   string
-	oauthScopes         []string
-	oauthTokenURL       string
-	oauthEndpointParams url.Values
-	certFile            string
-	keyFile             string
-	certString          string
-	keyString           string
-	debug               bool
+	uri                       string
+	insecure                  bool
+	username                  string
+	password                  string
+	bearer                    string
+	headers                   map[string]string
+	timeout                   int
+	idAttribute               string
+	createMethod              string
+	readMethod                string
+	updateMethod              string
+	updateData                string
+	destroyMethod             string
+	destroyData               string
+	copyKeys                  []string
+	writeReturnsObject        bool
+	createReturnsObject       bool
+	xssiPrefix                string
+	useCookies                bool
+	rateLimit                 float64
+	oauthClientID             string
+	oauthClientSecret         string
+	oauthScopes               []string
+	oauthTokenURL             string
+	oauthEndpointParams       url.Values
+	gcpOauthScopes            []string
+	gcpOauthServiceAccountKey string
+	gcpOauthAudience          string
+	certFile                  string
+	keyFile                   string
+	certString                string
+	keyString                 string
+	debug                     bool
 }
 
 /*APIClient is a HTTP client with additional controlling fields*/
@@ -76,6 +79,7 @@ type APIClient struct {
 	rateLimiter         *rate.Limiter
 	debug               bool
 	oauthConfig         *clientcredentials.Config
+	gcpOauthConfig      *GCPOauthConfig
 }
 
 // NewAPIClient makes a new api client for RESTful calls
@@ -186,6 +190,14 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		}
 	}
 
+	if opt.gcpOauthServiceAccountKey != "" {
+		client.gcpOauthConfig = &GCPOauthConfig{
+			serviceAccountKey: opt.gcpOauthServiceAccountKey,
+			scopes:            opt.gcpOauthScopes,
+			audience:          opt.gcpOauthAudience,
+		}
+	}
+
 	if opt.debug {
 		log.Printf("api_client.go: Constructed client:\n%s", client.toString())
 	}
@@ -259,7 +271,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 
 	/* Set bearer from env var if supplied */
 	if client.bearer != "" {
-		req.Header.Set("Authorization", "Bearer "+client.bearer)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearer))
 	}
 
 	if client.oauthConfig != nil {
@@ -269,7 +281,15 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 		if err != nil {
 			return "", err
 		}
-		req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+	}
+
+	if client.gcpOauthConfig != nil {
+		token, err := GetGCPOauthToken(client.gcpOauthConfig)
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	}
 
 	if client.username != "" && client.password != "" {

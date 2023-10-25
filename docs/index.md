@@ -38,6 +38,7 @@ provider "restapi" {
 
 ### Optional
 
+- `bearer_env_var_name` (String) When set, will use the value of this env var for as bearer for auth to the API.
 - `cert_file` (String) When set with the key_file parameter, the provider will load a client certificate as a file for mTLS authentication.
 - `cert_string` (String) When set with the key_string parameter, the provider will load a client certificate as a string for mTLS authentication.
 - `copy_keys` (List of String) When set, any PUT to the API for an object will copy these keys from the data the provider has gathered about the object. This is useful if internal API information must also be provided with updates, such as the revision of the object.
@@ -45,6 +46,7 @@ provider "restapi" {
 - `create_returns_object` (Boolean) Set this when the API returns the object created only on creation operations (POST). This is used by the provider to refresh internal data structures.
 - `debug` (Boolean) Enabling this will cause lots of debug information to be printed to STDOUT by the API client.
 - `destroy_method` (String) Defaults to `DELETE`. The HTTP method used to DELETE objects of this type on the API server.
+- `gcp_oauth_settings` (Block List, Max: 1) Configuration for GCP oauth client credential flow (see [below for nested schema](#nestedblock--gcp_oauth_settings))
 - `headers` (Map of String) A map of header names and values to set on all outbound requests. This is useful if you want to use a script via the 'external' provider or provide a pre-approved token or change Content-Type from `application/json`. If `username` and `password` are set and Authorization is one of the headers defined here, the BASIC auth credentials take precedence.
 - `id_attribute` (String) When set, this key will be used to operate on REST objects. For example, if the ID is set to 'name', changes to the API object will be to http://foo.com/bar/VALUE_OF_NAME. This value may also be a '/'-delimeted path to the id attribute if it is multple levels deep in the data (such as `attributes/id` in the case of an object `{ "attributes": { "id": 1234 }, "config": { "name": "foo", "something": "bar"}}`
 - `insecure` (Boolean) When using https, this disables TLS verification of the host.
@@ -61,6 +63,16 @@ provider "restapi" {
 - `username` (String) When set, will use this username for BASIC auth to the API.
 - `write_returns_object` (Boolean) Set this when the API returns the object created on all write operations (POST, PUT). This is used by the provider to refresh internal data structures.
 - `xssi_prefix` (String) Trim the xssi prefix from response string, if present, before parsing.
+
+<a id="nestedblock--gcp_oauth_settings"></a>
+### Nested Schema for `gcp_oauth_settings`
+
+Optional:
+
+- `audience` (String) audience
+- `scopes` (List of String) scopes
+- `service_account_key` (String, Sensitive) scopes
+
 
 <a id="nestedblock--oauth_client_credentials"></a>
 ### Nested Schema for `oauth_client_credentials`
