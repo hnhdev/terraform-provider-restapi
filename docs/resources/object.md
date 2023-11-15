@@ -55,3 +55,5 @@ resource "restapi_object" "Foo2" {
 - `api_response` (String) The raw body of the HTTP response from the last read of the object.
 - `create_response` (String) The raw body of the HTTP response returned when creating the object.
 - `id` (String) The ID of this resource.
+
+

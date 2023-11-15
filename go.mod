@@ -1,11 +1,10 @@
 module github.com/Mastercard/terraform-provider-restapi
 
-go 1.18
+go 1.19
 
 require (
 	github.com/davecgh/go-spew v1.1.1
-	github.com/hashicorp/terraform-json v0.17.1 // indirect; forced so test cases pass
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.30.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.29.0
 	golang.org/x/oauth2 v0.14.0
 	golang.org/x/time v0.4.0
 )
@@ -14,7 +13,7 @@ require github.com/google/oauth2l v1.3.0
 
 require (
 	github.com/CycloneDX/cyclonedx-gomod v1.4.1
-	github.com/hashicorp/terraform-plugin-docs v0.16.0
+	github.com/hashicorp/terraform-plugin-docs v0.8.1
 	github.com/sethvargo/go-retry v0.2.4
 	google.golang.org/api v0.150.0
 )

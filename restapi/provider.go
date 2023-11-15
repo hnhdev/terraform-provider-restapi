@@ -50,6 +50,12 @@ func Provider() *schema.Provider {
 				Optional:    true,
 				Description: "A map of header names and values to set on all outbound requests. This is useful if you want to use a script via the 'external' provider or provide a pre-approved token or change Content-Type from `application/json`. If `username` and `password` are set and Authorization is one of the headers defined here, the BASIC auth credentials take precedence.",
 			},
+			"headers_with_values_from_environment_variables": {
+				Type:        schema.TypeMap,
+				Elem:        schema.TypeString,
+				Optional:    true,
+				Description: "A map of header names and names of environment variables containing values to set on all outbound requests. This is useful if you want to use a script via the 'external' provider or provide a pre-approved token or change Content-Type from `application/json`. If `username` and `password` are set and Authorization is one of the headers defined here, the BASIC auth credentials take precedence.",
+			},
 			"use_cookies": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -367,12 +373,17 @@ func configureProvider(d *schema.ResourceData) (interface{}, error) {
 		}
 	}
 
+	if envHeaders := d.Get("headers_with_values_from_environment_variables"); envHeaders != nil {
+		for headerName, environmentVariableName := range envHeaders.(map[string]interface{}) {
+			headers[headerName] = os.Getenv(environmentVariableName.(string))
+		}
+	}
+
 	opt := &apiClientOpt{
 		uri:                 d.Get("uri").(string),
 		insecure:            d.Get("insecure").(bool),
 		username:            d.Get("username").(string),
 		password:            d.Get("password").(string),
-		bearer:              os.Getenv(d.Get("bearer_env_var_name").(string)),
 		headers:             headers,
 		useCookies:          d.Get("use_cookies").(bool),
 		timeout:             d.Get("timeout").(int),

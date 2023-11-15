@@ -27,7 +27,6 @@ type apiClientOpt struct {
 	insecure            bool
 	username            string
 	password            string
-	bearer              string
 	headers             map[string]string
 	timeout             int
 	idAttribute         string
@@ -65,7 +64,6 @@ type APIClient struct {
 	insecure            bool
 	username            string
 	password            string
-	bearer              string
 	headers             map[string]string
 	idAttribute         string
 	createMethod        string
@@ -169,7 +167,6 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		insecure:            opt.insecure,
 		username:            opt.username,
 		password:            opt.password,
-		bearer:              opt.bearer,
 		headers:             opt.headers,
 		idAttribute:         opt.idAttribute,
 		createMethod:        opt.createMethod,
@@ -221,7 +218,6 @@ func (client *APIClient) toString() string {
 	buffer.WriteString(fmt.Sprintf("insecure: %t\n", client.insecure))
 	buffer.WriteString(fmt.Sprintf("username: %s\n", client.username))
 	buffer.WriteString(fmt.Sprintf("password: %s\n", client.password))
-	buffer.WriteString(fmt.Sprintf("bearer: %s\n", client.bearer))
 	buffer.WriteString(fmt.Sprintf("id_attribute: %s\n", client.idAttribute))
 	buffer.WriteString(fmt.Sprintf("write_returns_object: %t\n", client.writeReturnsObject))
 	buffer.WriteString(fmt.Sprintf("create_returns_object: %t\n", client.createReturnsObject))
@@ -292,11 +288,6 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 			for n, v := range client.headers {
 				req.Header.Set(n, v)
 			}
-		}
-
-		/* Set bearer from env var if supplied */
-		if client.bearer != "" {
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearer))
 		}
 
 		if client.oauthConfig != nil {
