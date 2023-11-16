@@ -295,6 +295,11 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 			}
 		}
 
+		/* Set bearer from env var if supplied */
+		if client.bearer != "" {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearer))
+		}
+
 		if client.oauthConfig != nil {
 			ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client.httpClient)
 			tokenSource := client.oauthConfig.TokenSource(ctx)
