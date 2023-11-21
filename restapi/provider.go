@@ -124,6 +124,12 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("REST_API_RATE_LIMIT", math.MaxFloat64),
 				Description: "Set this to limit the number of requests per second made to the API.",
 			},
+			"rate_limit_bucket_size": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				DefaultFunc: schema.EnvDefaultFunc("REST_API_RATE_LIMIT_BUCKET_SIZE", math.MaxInt64),
+				Description: "Set this to limit the number of requests per second made to the API.",
+			},
 			"test_path": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -382,6 +388,7 @@ func configureProvider(d *schema.ResourceData) (interface{}, error) {
 		createReturnsObject: d.Get("create_returns_object").(bool),
 		xssiPrefix:          d.Get("xssi_prefix").(string),
 		rateLimit:           d.Get("rate_limit").(float64),
+		rateLimitBucketSize: d.Get("rate_limit_bucket_size").(int),
 		debug:               d.Get("debug").(bool),
 	}
 

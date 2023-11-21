@@ -43,6 +43,7 @@ type apiClientOpt struct {
 	xssiPrefix          string
 	useCookies          bool
 	rateLimit           float64
+	rateLimitBucketSize int
 	oauthClientID       string
 	oauthClientSecret   string
 	oauthScopes         []string
@@ -154,7 +155,12 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 	}
 
 	rateLimit := rate.Limit(opt.rateLimit)
-	bucketSize := int(math.Max(math.Round(opt.rateLimit), 1))
+	var bucketSize int
+	if opt.rateLimitBucketSize != math.MaxInt64 {
+		bucketSize = opt.rateLimitBucketSize
+	} else {
+		bucketSize = int(math.Max(math.Round(opt.rateLimit), 1))
+	}
 	log.Printf("limit: %f bucket: %d", opt.rateLimit, bucketSize)
 	rateLimiter := rate.NewLimiter(rateLimit, bucketSize)
 
@@ -374,7 +380,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 
 			log.Printf(`
 --- [REQUEST TO %s] ---
-%s %s 
+%s %s
 
 %s
 
