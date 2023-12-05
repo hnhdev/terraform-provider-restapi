@@ -21,7 +21,7 @@ func parseGCPScopes(scopes []string) []string {
 	parsedScopes := []string{}
 	for i := 0; i < len(scopes); i++ {
 		if !strings.Contains(scopes[i], "//") && !openIdScopes.MatchString(scopes[i]) {
-			parsedScopes = append(parsedScopes, scopes[i])
+			parsedScopes = append(parsedScopes, scopePrefix+scopes[i])
 		}
 	}
 
