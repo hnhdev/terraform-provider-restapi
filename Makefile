@@ -3,7 +3,7 @@ HOSTNAME=local
 NAMESPACE=mastercard
 NAME=restapi
 BINARY=terraform-provider-${NAME}
-VERSION=1.18.2
+VERSION=1.18.3
 OS=${MY_OS}
 ARCH=${MY_ARCH}
 

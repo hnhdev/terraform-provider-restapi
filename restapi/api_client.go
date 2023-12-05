@@ -4,19 +4,18 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/sethvargo/go-retry"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/time/rate"
@@ -27,7 +26,6 @@ type apiClientOpt struct {
 	insecure            bool
 	username            string
 	password            string
-	bearer              string
 	headers             map[string]string
 	timeout             int
 	idAttribute         string
@@ -54,8 +52,6 @@ type apiClientOpt struct {
 	keyString           string
 	debug               bool
 	GCPOauthConfig      *GCPOauthConfig
-	AzureOauthConfig    *AzureOauthConfig
-	AsyncSettings       *AsyncSettings
 }
 
 /*APIClient is a HTTP client with additional controlling fields*/
@@ -65,7 +61,6 @@ type APIClient struct {
 	insecure            bool
 	username            string
 	password            string
-	bearer              string
 	headers             map[string]string
 	idAttribute         string
 	createMethod        string
@@ -80,11 +75,6 @@ type APIClient struct {
 	xssiPrefix          string
 	rateLimiter         *rate.Limiter
 	debug               bool
-	oauthConfig         *clientcredentials.Config
-	gcpOauthConfig      *GCPOauthConfig
-	azureOauthConfig    *AzureOauthConfig
-	AsyncSettings       *AsyncSettings
-	gcpOauthToken       *oauth2.Token
 }
 
 // NewAPIClient makes a new api client for RESTful calls
@@ -142,9 +132,36 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	tr := &http.Transport{
+	var httpClientTransport http.RoundTripper
+	httpClientTransport = &http.Transport{
 		TLSClientConfig: tlsConfig,
 		Proxy:           http.ProxyFromEnvironment,
+	}
+
+	if opt.GCPOauthConfig != nil && opt.GCPOauthConfig.serviceAccountKey != "" {
+		reuseTokenSource, err := GetGCPOauthReuseTokenSource(opt.GCPOauthConfig)
+
+		if err != nil {
+			return nil, err
+		}
+
+		httpClientTransport = &oauth2.Transport{
+			Source: *reuseTokenSource,
+			Base:   httpClientTransport,
+		}
+	} else if opt.oauthClientID != "" && opt.oauthClientSecret != "" && opt.oauthTokenURL != "" {
+		clientCredentialsConfig := clientcredentials.Config{
+			ClientID:       opt.oauthClientID,
+			ClientSecret:   opt.oauthClientSecret,
+			TokenURL:       opt.oauthTokenURL,
+			Scopes:         opt.oauthScopes,
+			EndpointParams: opt.oauthEndpointParams,
+		}
+
+		httpClientTransport = &oauth2.Transport{
+			Source: clientCredentialsConfig.TokenSource(context.Background()),
+			Base:   httpClientTransport,
+		}
 	}
 
 	var cookieJar http.CookieJar
@@ -161,7 +178,7 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 	client := APIClient{
 		httpClient: &http.Client{
 			Timeout:   time.Second * time.Duration(opt.timeout),
-			Transport: tr,
+			Transport: httpClientTransport,
 			Jar:       cookieJar,
 		},
 		rateLimiter:         rateLimiter,
@@ -169,7 +186,6 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		insecure:            opt.insecure,
 		username:            opt.username,
 		password:            opt.password,
-		bearer:              opt.bearer,
 		headers:             opt.headers,
 		idAttribute:         opt.idAttribute,
 		createMethod:        opt.createMethod,
@@ -185,31 +201,10 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		debug:               opt.debug,
 	}
 
-	if opt.oauthClientID != "" && opt.oauthClientSecret != "" && opt.oauthTokenURL != "" {
-		client.oauthConfig = &clientcredentials.Config{
-			ClientID:       opt.oauthClientID,
-			ClientSecret:   opt.oauthClientSecret,
-			TokenURL:       opt.oauthTokenURL,
-			Scopes:         opt.oauthScopes,
-			EndpointParams: opt.oauthEndpointParams,
-		}
-	}
-
-	if opt.GCPOauthConfig != nil {
-		client.gcpOauthConfig = opt.GCPOauthConfig
-	}
-
-	if opt.AzureOauthConfig != nil {
-		client.azureOauthConfig = opt.AzureOauthConfig
-	}
-
-	if opt.AsyncSettings != nil {
-		client.AsyncSettings = opt.AsyncSettings
-	}
-
 	if opt.debug {
 		log.Printf("api_client.go: Constructed client:\n%s", client.toString())
 	}
+
 	return &client, nil
 }
 
@@ -221,7 +216,6 @@ func (client *APIClient) toString() string {
 	buffer.WriteString(fmt.Sprintf("insecure: %t\n", client.insecure))
 	buffer.WriteString(fmt.Sprintf("username: %s\n", client.username))
 	buffer.WriteString(fmt.Sprintf("password: %s\n", client.password))
-	buffer.WriteString(fmt.Sprintf("bearer: %s\n", client.bearer))
 	buffer.WriteString(fmt.Sprintf("id_attribute: %s\n", client.idAttribute))
 	buffer.WriteString(fmt.Sprintf("write_returns_object: %t\n", client.writeReturnsObject))
 	buffer.WriteString(fmt.Sprintf("create_returns_object: %t\n", client.createReturnsObject))
@@ -241,253 +235,97 @@ Helper function that handles sending/receiving and handling
 	of HTTP data in and out.
 */
 func (client *APIClient) sendRequest(method string, path string, data string) (string, error) {
-	var requestUri string = client.uri + path
-	var responseBody string
-	var requestBody string = data
-	var requestMethod string = method
-	var requestIsRedirected bool = false
-	var backoff retry.Backoff = retry.NewConstant(time.Second)
-
-	if client.AsyncSettings != nil && client.AsyncSettings.PollInterval > 0 {
-		backoff = retry.NewConstant(time.Duration(client.AsyncSettings.PollInterval) * time.Second)
-	}
-
-	if client.AsyncSettings != nil && client.AsyncSettings.MaximumPollingDuration > 0 {
-		backoff = retry.WithMaxDuration(time.Duration(client.AsyncSettings.MaximumPollingDuration)*time.Second, backoff)
-	}
-
+	fullURI := client.uri + path
 	var req *http.Request
 	var err error
 
 	if client.debug {
-		log.Printf("api_client.go: method='%s', path='%s', full uri (derived)='%s', data='%s'\n", requestMethod, path, requestUri, data)
+		log.Printf("api_client.go: method='%s', path='%s', full uri (derived)='%s', data='%s'\n", method, path, fullURI, data)
 	}
 
-	ctx := context.Background()
+	buffer := bytes.NewBuffer([]byte(data))
 
-	err = retry.Do(ctx, backoff, func(ctx context.Context) error {
-		buffer := bytes.NewBuffer([]byte(requestBody))
+	if data == "" {
+		req, err = http.NewRequest(method, fullURI, nil)
+	} else {
+		req, err = http.NewRequest(method, fullURI, buffer)
 
-		if requestBody == "" {
-			req, err = http.NewRequest(requestMethod, requestUri, nil)
-		} else {
-			req, err = http.NewRequest(requestMethod, requestUri, buffer)
-
-			/* Default of application/json, but allow headers array to overwrite later */
-			if err == nil {
-				req.Header.Set("Content-Type", "application/json")
-			}
+		/* Default of application/json, but allow headers array to overwrite later */
+		if err == nil {
+			req.Header.Set("Content-Type", "application/json")
 		}
+	}
+
+	if err != nil {
+		log.Fatal(err)
+		return "", err
+	}
+
+	if client.debug {
+		log.Printf("api_client.go: Sending HTTP request to %s...\n", req.URL)
+	}
+
+	/* Allow for tokens or other pre-created secrets */
+	if len(client.headers) > 0 {
+		for n, v := range client.headers {
+			req.Header.Set(n, v)
+		}
+	}
+
+	if client.username != "" && client.password != "" {
+		/* ... and fall back to basic auth if configured */
+		req.SetBasicAuth(client.username, client.password)
+	}
+
+	if client.debug {
+		body, err := httputil.DumpRequestOut(req, true)
 
 		if err != nil {
-			log.Fatal(err)
-			return err
+			return "", err
 		}
 
+		log.Print(string(body))
+	}
+
+	if client.rateLimiter != nil {
+		// Rate limiting
 		if client.debug {
-			log.Printf("api_client.go: Sending HTTP request to %s...\n", req.URL)
+			log.Printf("Waiting for rate limit availability\n")
 		}
+		_ = client.rateLimiter.Wait(context.Background())
+	}
 
-		/* Allow for tokens or other pre-created secrets */
-		if len(client.headers) > 0 {
-			for n, v := range client.headers {
-				req.Header.Set(n, v)
-			}
-		}
+	resp, err := client.httpClient.Do(req)
 
-		/* Set bearer from env var if supplied */
-		if client.bearer != "" {
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearer))
-		}
+	if err != nil {
+		//log.Printf("api_client.go: Error detected: %s\n", err)
+		return "", err
+	}
 
-		if client.oauthConfig != nil {
-			ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client.httpClient)
-			tokenSource := client.oauthConfig.TokenSource(ctx)
-			token, err := tokenSource.Token()
-
-			if err != nil {
-				return err
-			}
-
-			req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-		}
-
-		if client.gcpOauthConfig != nil {
-			token := client.gcpOauthToken
-			empty_token := token == nil
-			expired_token := !empty_token && time.Now().Add(-time.Minute).After(token.Expiry)
-
-			if client.debug {
-				if expired_token {
-					log.Println("GCP bearer token expired")
-				} else if empty_token {
-					log.Println("no GCP bearer token in memory")
-				} else {
-					log.Println("reusing GCP bearer token")
-				}
-			}
-
-			if empty_token || expired_token {
-				if client.debug {
-					log.Println("attemtping to fetch new GCP bearer token")
-				}
-
-				token, err = GetGCPOauthToken(client.gcpOauthConfig)
-
-				if err != nil {
-					return err
-				}
-
-				client.gcpOauthToken = token
-			}
-
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
-		}
-
-		if client.azureOauthConfig != nil {
-			token, err := GetAzureOauthToken(client.azureOauthConfig)
-
-			if err != nil {
-				return err
-			}
-
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
-		}
-
-		if client.username != "" && client.password != "" {
-			/* ... and fall back to basic auth if configured */
-			req.SetBasicAuth(client.username, client.password)
-		}
-
-		if client.debug {
-			var headerList []string
-
-			for name, headers := range req.Header {
-				for _, h := range headers {
-					headerList = append(headerList, fmt.Sprintf("%s, %s", name, h))
-				}
-			}
-
-			body := "<none>"
-			if req.Body != nil {
-				body = string(requestBody)
-			}
-
-			log.Printf(`
---- [REQUEST TO %s] ---
-%s %s 
-
-%s
-
-%s
-
---- [END REQUEST] ---`, req.Host, req.Method, req.URL, strings.Join(headerList, "\n"), body)
-		}
-
-		if client.rateLimiter != nil {
-			// Rate limiting
-			if client.debug {
-				log.Printf("Waiting for rate limit availability\n")
-			}
-			_ = client.rateLimiter.Wait(context.Background())
-		}
-
-		resp, err := client.httpClient.Do(req)
+	if client.debug {
+		body, err := httputil.DumpResponse(resp, true)
 
 		if err != nil {
-			log.Fatal(err)
-			return err
+			return "", err
 		}
 
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
+		log.Print(string(body))
+	}
 
-		if err != nil {
-			return err
-		}
+	bodyBytes, err2 := io.ReadAll(resp.Body)
+	resp.Body.Close()
 
-		if client.debug {
-			var headerList []string
+	if err2 != nil {
+		return "", err2
+	}
+	body := strings.TrimPrefix(string(bodyBytes), client.xssiPrefix)
+	if client.debug {
+		log.Printf("api_client.go: BODY:\n%s\n", body)
+	}
 
-			for name, headers := range resp.Header {
-				for _, h := range headers {
-					headerList = append(headerList, fmt.Sprintf("%s, %s", name, h))
-				}
-			}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return body, fmt.Errorf("unexpected response code '%d': %s", resp.StatusCode, body)
+	}
 
-			if err != nil {
-				return err
-			}
-
-			log.Printf(`
---- [RESPONSE FROM %s] ---
-%s
-
-%s
-
-%s
-
---- [END RESPONSE] ---`, resp.Request.Host, resp.Status, strings.Join(headerList, "\n"), string(bodyBytes))
-		}
-
-		body := strings.TrimPrefix(string(bodyBytes), client.xssiPrefix)
-		responseBody = body
-
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("unexpected response code '%d': %s", resp.StatusCode, body)
-		}
-
-		if client.AsyncSettings != nil && client.AsyncSettings.RedirectUriKey != "" && !requestIsRedirected {
-			var result interface{}
-			err = json.Unmarshal([]byte(body), &result)
-
-			if err != nil {
-				return err
-			} else {
-				redirectUri, err := GetStringAtKey(result.(map[string]interface{}), client.AsyncSettings.RedirectUriKey, client.debug)
-
-				if err != nil {
-					log.Printf("api_client.go: Cant find redirect URI key: %s\n", err)
-					return err
-				}
-
-				if client.debug {
-					log.Printf("api_client.go: Has follow uri, following to: %s", redirectUri)
-				}
-
-				requestUri = redirectUri
-				requestMethod = "GET"
-				requestIsRedirected = true
-				requestBody = ""
-
-				return retry.RetryableError(errors.New("should retry with new path"))
-			}
-		}
-
-		if client.AsyncSettings != nil && client.AsyncSettings.SearchKey != "" && client.AsyncSettings.SearchValue != "" {
-			var result interface{}
-			err = json.Unmarshal([]byte(body), &result)
-
-			if err != nil {
-				return err
-			}
-
-			value, err := GetStringAtKey(result.(map[string]interface{}), client.AsyncSettings.SearchKey, client.debug)
-
-			if err != nil {
-				return err
-			}
-
-			if value != client.AsyncSettings.SearchValue {
-				if client.debug {
-					log.Printf("api_client.go: search value does not match desired value %s!=%s", value, client.AsyncSettings.SearchValue)
-				}
-				return retry.RetryableError(errors.New("async search value not found, retrying"))
-			}
-		}
-
-		return nil
-	})
-
-	return responseBody, err
+	return body, nil
 }

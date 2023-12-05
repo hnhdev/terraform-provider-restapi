@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"os"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"google.golang.org/api/impersonate"
 )
 
 /*Provider implements the REST API provider*/
@@ -37,12 +35,6 @@ func Provider() *schema.Provider {
 				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("REST_API_PASSWORD", nil),
 				Description: "When set, will use this password for BASIC auth to the API.",
-			},
-			"bearer_env_var_name": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: schema.EnvDefaultFunc("REST_API_BEARER_ENV_VAR_NAME", nil),
-				Description: "When set, will use the value of this env var for as bearer for auth to the API.",
 			},
 			"headers": {
 				Type:        schema.TypeMap,
@@ -136,40 +128,6 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("REST_API_DEBUG", nil),
 				Description: "Enabling this will cause lots of debug information to be printed to STDOUT by the API client.",
 			},
-			"async_settings": {
-				Type:     schema.TypeList,
-				Optional: true,
-				MaxItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"redirect_uri_key": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "The key of the uri in the response that should be followed instead",
-						},
-						"search_key": {
-							Type:        schema.TypeString,
-							Description: "The key that should be evaluated to determine whether a async request is done",
-							Required:    true,
-						},
-						"search_value": {
-							Type:        schema.TypeString,
-							Description: "The value that should be evaluated to determine whether a async request is done",
-							Required:    true,
-						},
-						"poll_interval": {
-							Type:        schema.TypeInt,
-							Description: "At what interval the endpoint should be checked (in seconds)",
-							Optional:    true,
-						},
-						"maximum_polling_duration": {
-							Type:        schema.TypeInt,
-							Description: "After this amount of time the polling should stop (in seconds)",
-							Optional:    true,
-						},
-					},
-				},
-			},
 			"oauth_client_credentials": {
 				Type:        schema.TypeList,
 				Optional:    true,
@@ -228,85 +186,6 @@ func Provider() *schema.Provider {
 							Optional:    true,
 							Description: "service account key",
 							Sensitive:   true,
-						},
-						"audience": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "audience",
-						},
-					},
-				},
-			},
-			"azure_oauth_settings": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				MaxItems:    1,
-				Description: "Configuration for azure federated credential oauth flow",
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"scope": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "scope",
-							DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_SCOPE", ""),
-						},
-						"client_assertion_type": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "client assertion type",
-							DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_CLIENT_ASSERTION_TYPE", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
-						},
-						"grant_type": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "grant type",
-							Default:     "client_credentials",
-							DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_CLIENT_CREDENTIALS", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
-						},
-						"tenant_id": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "tenant id",
-							DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_TENANT_ID", ""),
-						},
-						"client_id": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "client id",
-							DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_CLIENT_ID", ""),
-						},
-						"gcp_open_id_token_config": {
-							Type:        schema.TypeList,
-							Optional:    true,
-							Description: "Open id settings to fetch a token using gcp creds",
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"audience": {
-										Type:        schema.TypeString,
-										Required:    true,
-										Description: "audience",
-										DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_GCP_OPEN_ID_AUDIENCE", ""),
-									},
-									"delegates": {
-										Type:        schema.TypeString,
-										Optional:    true,
-										Description: "delegates (as comma separated string, since terraform does not allow list default values / functions)",
-										DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_GCP_OPEN_ID_DELEGATES", ""),
-									},
-									"target_principal": {
-										Type:        schema.TypeString,
-										Required:    true,
-										Description: "target principal",
-										DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_GCP_OPEN_ID_TARGET_PRINCIPAL", ""),
-									},
-									"include_email": {
-										Type:        schema.TypeBool,
-										Optional:    true,
-										Description: "include email",
-										DefaultFunc: schema.EnvDefaultFunc("AZURE_OAUTH_SETTINGS_GCP_OPEN_ID_INCLUDE_EMAIL", false),
-									},
-								},
-							},
 						},
 					},
 				},
@@ -372,7 +251,6 @@ func configureProvider(d *schema.ResourceData) (interface{}, error) {
 		insecure:            d.Get("insecure").(bool),
 		username:            d.Get("username").(string),
 		password:            d.Get("password").(string),
-		bearer:              os.Getenv(d.Get("bearer_env_var_name").(string)),
 		headers:             headers,
 		useCookies:          d.Get("use_cookies").(bool),
 		timeout:             d.Get("timeout").(int),
@@ -421,38 +299,6 @@ func configureProvider(d *schema.ResourceData) (interface{}, error) {
 		opt.GCPOauthConfig = &GCPOauthConfig{
 			scopes:            expandStringSet(gcpOauthSettings["scopes"].([]interface{})),
 			serviceAccountKey: gcpOauthSettings["service_account_key"].(string),
-			audience:          gcpOauthSettings["audience"].(string),
-		}
-	}
-
-	if v, ok := d.GetOk("azure_oauth_settings"); ok {
-		azureOauthSettings := v.([]interface{})[0].(map[string]interface{})
-		gcpOpenIdTokenConfig := azureOauthSettings["gcp_open_id_token_config"].([]interface{})[0].(map[string]interface{})
-
-		opt.AzureOauthConfig = &AzureOauthConfig{
-			Scope:               azureOauthSettings["scope"].(string),
-			TenantId:            azureOauthSettings["tenant_id"].(string),
-			ClientId:            azureOauthSettings["client_id"].(string),
-			GrantType:           azureOauthSettings["grant_type"].(string),
-			ClientAssertionType: azureOauthSettings["client_assertion_type"].(string),
-
-			GCPOpenIDTokenConfig: &impersonate.IDTokenConfig{
-				TargetPrincipal: gcpOpenIdTokenConfig["target_principal"].(string),
-				IncludeEmail:    gcpOpenIdTokenConfig["include_email"].(bool),
-				Delegates:       StringToList(gcpOpenIdTokenConfig["delegates"].(string)),
-				Audience:        gcpOpenIdTokenConfig["audience"].(string),
-			},
-		}
-	}
-
-	if v, ok := d.GetOk("async_settings"); ok {
-		asyncSettings := v.([]interface{})[0].(map[string]interface{})
-		opt.AsyncSettings = &AsyncSettings{
-			RedirectUriKey:         asyncSettings["redirect_uri_key"].(string),
-			SearchKey:              asyncSettings["search_key"].(string),
-			SearchValue:            asyncSettings["search_value"].(string),
-			PollInterval:           asyncSettings["poll_interval"].(int),
-			MaximumPollingDuration: asyncSettings["maximum_polling_duration"].(int),
 		}
 	}
 

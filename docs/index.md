@@ -38,9 +38,6 @@ provider "restapi" {
 
 ### Optional
 
-- `async_settings` (Block List, Max: 1) (see [below for nested schema](#nestedblock--async_settings))
-- `azure_oauth_settings` (Block List, Max: 1) Configuration for azure federated credential oauth flow (see [below for nested schema](#nestedblock--azure_oauth_settings))
-- `bearer_env_var_name` (String) When set, will use the value of this env var for as bearer for auth to the API.
 - `cert_file` (String) When set with the key_file parameter, the provider will load a client certificate as a file for mTLS authentication.
 - `cert_string` (String) When set with the key_string parameter, the provider will load a client certificate as a string for mTLS authentication.
 - `copy_keys` (List of String) When set, any PUT to the API for an object will copy these keys from the data the provider has gathered about the object. This is useful if internal API information must also be provided with updates, such as the revision of the object.
@@ -66,51 +63,11 @@ provider "restapi" {
 - `write_returns_object` (Boolean) Set this when the API returns the object created on all write operations (POST, PUT). This is used by the provider to refresh internal data structures.
 - `xssi_prefix` (String) Trim the xssi prefix from response string, if present, before parsing.
 
-<a id="nestedblock--async_settings"></a>
-### Nested Schema for `async_settings`
-
-Required:
-
-- `search_key` (String) The key that should be evaluated to determine whether a async request is done
-- `search_value` (String) The value that should be evaluated to determine whether a async request is done
-
-Optional:
-
-- `maximum_polling_duration` (Number) After this amount of time the polling should stop (in seconds)
-- `poll_interval` (Number) At what interval the endpoint should be checked (in seconds)
-- `redirect_uri_key` (String) The key of the uri in the response that should be followed instead
-
-
-<a id="nestedblock--azure_oauth_settings"></a>
-### Nested Schema for `azure_oauth_settings`
-
-Optional:
-
-- `client_assertion_type` (String) client assertion type
-- `client_id` (String) client id
-- `gcp_open_id_token_config` (Block List) Open id settings to fetch a token using gcp creds (see [below for nested schema](#nestedblock--azure_oauth_settings--gcp_open_id_token_config))
-- `grant_type` (String) grant type
-- `scope` (String) scope
-- `tenant_id` (String) tenant id
-
-<a id="nestedblock--azure_oauth_settings--gcp_open_id_token_config"></a>
-### Nested Schema for `azure_oauth_settings.gcp_open_id_token_config`
-
-Optional:
-
-- `audience` (String) audience
-- `delegates` (String) delegates (as comma separated string, since terraform does not allow list default values / functions)
-- `include_email` (Boolean) include email
-- `target_principal` (String) target principal
-
-
-
 <a id="nestedblock--gcp_oauth_settings"></a>
 ### Nested Schema for `gcp_oauth_settings`
 
 Optional:
 
-- `audience` (String) audience
 - `scopes` (List of String) scopes
 - `service_account_key` (String, Sensitive) service account key
 
