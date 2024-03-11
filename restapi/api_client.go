@@ -31,6 +31,7 @@ type apiClientOpt struct {
 	idAttribute         string
 	createMethod        string
 	readMethod          string
+	readData            string
 	updateMethod        string
 	updateData          string
 	destroyMethod       string
@@ -65,6 +66,7 @@ type APIClient struct {
 	idAttribute         string
 	createMethod        string
 	readMethod          string
+	readData            string
 	updateMethod        string
 	updateData          string
 	destroyMethod       string
@@ -190,6 +192,7 @@ func NewAPIClient(opt *apiClientOpt) (*APIClient, error) {
 		idAttribute:         opt.idAttribute,
 		createMethod:        opt.createMethod,
 		readMethod:          opt.readMethod,
+		readData:            opt.readData,
 		updateMethod:        opt.updateMethod,
 		updateData:          opt.updateData,
 		destroyMethod:       opt.destroyMethod,
@@ -272,6 +275,16 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 		}
 	}
 
+	if client.oauthConfig != nil {
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client.httpClient)
+		tokenSource := client.oauthConfig.TokenSource(ctx)
+		token, err := tokenSource.Token()
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	}
+
 	if client.username != "" && client.password != "" {
 		/* ... and fall back to basic auth if configured */
 		req.SetBasicAuth(client.username, client.password)
@@ -325,6 +338,10 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return body, fmt.Errorf("unexpected response code '%d': %s", resp.StatusCode, body)
+	}
+
+	if body == "" {
+		return "{}", nil
 	}
 
 	return body, nil

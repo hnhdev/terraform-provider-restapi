@@ -63,15 +63,6 @@ provider "restapi" {
 - `write_returns_object` (Boolean) Set this when the API returns the object created on all write operations (POST, PUT). This is used by the provider to refresh internal data structures.
 - `xssi_prefix` (String) Trim the xssi prefix from response string, if present, before parsing.
 
-<a id="nestedblock--gcp_oauth_settings"></a>
-### Nested Schema for `gcp_oauth_settings`
-
-Optional:
-
-- `scopes` (List of String) scopes
-- `service_account_key` (String, Sensitive) service account key
-
-
 <a id="nestedblock--oauth_client_credentials"></a>
 ### Nested Schema for `oauth_client_credentials`
 
