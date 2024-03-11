@@ -275,16 +275,6 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 		}
 	}
 
-	if client.oauthConfig != nil {
-		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client.httpClient)
-		tokenSource := client.oauthConfig.TokenSource(ctx)
-		token, err := tokenSource.Token()
-		if err != nil {
-			return "", err
-		}
-		req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-	}
-
 	if client.username != "" && client.password != "" {
 		/* ... and fall back to basic auth if configured */
 		req.SetBasicAuth(client.username, client.password)
