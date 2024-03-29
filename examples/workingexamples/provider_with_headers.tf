@@ -20,12 +20,12 @@ provider "restapi" {
 
   headers = {
     X-Internal-Client = "abc123"
-    Authorization = var.SECRET_TOKEN
+    Authorization     = var.SECRET_TOKEN
   }
 }
 
 resource "restapi_object" "Foo2" {
   provider = restapi.restapi_headers
-  path = "/api/objects"
-  data = "{ \"id\": \"55555\", \"first\": \"Foo\", \"last\": \"Bar\" }"
+  path     = "/api/objects"
+  data     = "{ \"id\": \"55555\", \"first\": \"Foo\", \"last\": \"Bar\" }"
 }

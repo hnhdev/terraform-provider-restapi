@@ -245,7 +245,7 @@ func (client *APIClient) sendRequest(method string, path string, data string) (s
 
 	buffer := bytes.NewBuffer([]byte(data))
 
-	if data == "" {
+	if data == "" || data == "{}" {
 		req, err = http.NewRequest(method, fullURI, nil)
 	} else {
 		req, err = http.NewRequest(method, fullURI, buffer)
