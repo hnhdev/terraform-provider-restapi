@@ -5,9 +5,9 @@ provider "restapi" {
   write_returns_object = true
 
   oauth_client_credentials {
-      oauth_client_id = "example"
-      oauth_client_secret = "example"
-      oauth_token_endpoint = "https://example.com/tokenendpoint"
-      oauth_scopes = ["openid"]
+    oauth_client_id      = "example"
+    oauth_client_secret  = "example"
+    oauth_token_endpoint = "https://example.com/tokenendpoint"
+    oauth_scopes         = ["openid"]
   }
 }
